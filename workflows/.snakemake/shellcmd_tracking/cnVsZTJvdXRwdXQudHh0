@@ -1,0 +1,1 @@
+cat output2.txt > rule2output.txt;
