@@ -1,0 +1,19 @@
+from snakemake import rules
+rule first_rule:
+ input:
+  file1='input.txt',
+  file2='input2.txt'
+ output:
+  output1='output.txt',
+  output2='output2.txt'
+ shell:
+  'cat {input.file1} > {output.output1};'
+  'cat {input.file2} > {output.output2};'
+
+rule second_rule:
+ input:
+  second=rules.first_rule.output.output2
+ output:
+  output3='rule2output.txt'
+ shell:
+  'cat {input.second} > {output.output3};'
