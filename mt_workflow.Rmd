@@ -1,0 +1,114 @@
+---
+title: "16S_metatranscriptomics"
+author: "Brenda KIage"
+date: "7/13/2022"
+output: html_document
+---
+Metatranscriptomics enables analysis of active microbes in an environment.
+
+## QUALITY CONTROL
+
+# Note:
+
+Quality parameters such as GC content may fail due to calculation of averages of many organisms. Sequence duplicates parameter may also fail to avoid removal of duplicates that may be due to differential expression.
+
+```{bash}
+fastqc {sampleF}.fastq {sampleR}.fastq -o ./results
+```
+
+##  FILTERING AND TRIMMING
+
+The trimming parameters are dependent on the Quality analysis. 
+Tool= Fastp -  automatically detects and removes adapters.
+
+```{bash}
+ fastp -i *f.fastq -I *r.fastq -o *f_trimmed.fastq -O *r_trimmed.fastq -q 30 -f 10 -F 10 -l 100
+```
+
+q - quality
+f - First 10 bases from read 1
+F - First 10 bases from read 2
+l - minimum read length
+
+## SORTING RNAs(mRNAs,rRNAs,other non-coding RNA)
+
+Tool - sortmerna
+Install using [this link](https://github.com/biocore/sortmerna.git)
+Clone the sortmerna repository
+```{bash}
+git clone https://github.com/biocore/sortmerna.git
+```
+Navigate into the repository directory.
+```{bash}
+ sortmerna --ref ./data/rRNA_databases/silva-bac-16s-id90.fasta  --ref ./data/rRNA_databases/silva-euk-28s-id98.fasta --ref ./data/rRNA_databases/silva-bac-23s-id98.fasta --ref ./data/rRNA_databases/silva-bac-16s-id90.fasta  --ref  ./data/rRNA_databases/silva-arc-23s-id98.fasta --reads ../T1A_F_trimmed3fp.fastq --reads ../T1A_R_trimmed3fp.fastq --fastx --aligned ./sortme4_align/TIA_align --other ./sortme4_other/TIA_othr --out2 --workdir sortme_out --threads 8
+```
+
+## TAXONOMIC ASSIGNMENT
+
+Tool - Kraken2
+Kraken is a taxonomic sequence classifier that assigns taxonomic labels to short DNA reads. 
+
+Kraken2 has two standard outputs:
+1. A kraken report output file which indicates which taxa were identified in the
+sequences and the percentage and number of fragments that mapped back to each
+taxon.
+2. A kraken text file that indicates how each input sequence was classified as well the
+the taxon that each k-mer mapped back to, if the k-mer was able to be classified.
+
+Documentation : [here](https://bisonnet.bucknell.edu/files/2021/05/Kraken2-Help-Sheet.pdf)
+
+```{bash}
+kraken2 -db ../minikraken2_v2_8GB_201904_UPDATE --paired ../T1A_F_trimmed3fp.fastq  ../T1A_R_trimmed3fp.fastq  --report kraken2_report_T1A_totalRNA --use-names --memory-mapping --output kraken_out_T1A_totalRNA --quick --threads 4
+```
+
+## GENERATION OF BIOM FILE
+
+Tool - kraken-biom
+
+The program takes as input, one or more files output from the kraken-report tool. Each file is parsed and the counts for each OTU (operational taxonomic unit) are recorded, along with database ID (e.g. NCBI), and lineage. The extracted data are then stored in a BIOM table where each count is linked to the Sample and OTU it belongs to. Sample IDs are extracted from the input filenames (everything up to the '.').
+
+Documentation: [here](https://github.com/smdabdoub/kraken-biom)
+
+```{bash}
+kraken-biom kraken2_report_T1A_totalRNA kraken2_report_T1A_mRNA --fmt json -o kraken2.biom
+```
+
+### DOWNSTREAM ANALYSIS WITH R
+
+Packages - phyloseq
+library(phyloseq)
+​
+
+# Set the working directory
+```{R}
+setwd("~/RT-training/Metatranscriptics/")
+```
+# Import data
+```{R}
+trascriptome_data <- import_biom("kraken_report.biom")
+trascriptome_data@tax_table@.Data <- substring(trascriptome_data@tax_table@.Data, 4)
+taxa.table <- trascriptome_data@tax_table@.Data
+```
+# Changing the column names
+```{R}
+colnames(trascriptome_data@tax_table@.Data ) <- c("Kingdom", "Phylum", "Class",
+                                                  "Order", "Family", "Genus", 
+                                                  "Species")
+```
+# subset the taxa table
+```{R}
+taxa.table <- trascriptome_data@tax_table@.Data
+```
+
+# Subset data to get bacteria kingdom
+```{R}
+transcript_bact <- subset_taxa(trascriptome_data, Kingdom == "Bacteria")
+transcript_bact
+sample_sums(transcript_bact)
+```
+# Plotting according to the Phylum of the two samples
+```{R}
+transcript_phylum <- tax_glom(trascriptome_data, taxrank = "Phylum", NArm=FALSE)
+plot_bar(trascriptome_data, fill="Phylum")
+plot_richness(physeq = transcript_bact, measures = c("Shannon"))
+```
