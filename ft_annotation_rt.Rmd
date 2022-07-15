@@ -55,3 +55,13 @@ tool- Trinity
 Trinity --seqType fa --max_memory 10G --left ./mrna_fwd.fasta --right ./mrna_rev.fasta  --CPU 4  --output ./trinity-results
 
 ```
+
+## Repeat the blast and assembly using the assembled sequences.
+
+```{bash}
+diamond blastx -d ../f_annotationdb/uniprot_sprot -q ./trinity-results/Trinity.fasta --outfmt 5 -o assembled_mrna_diam.xml --max-target-seqs 1 
+
+```
+
+## Visualise the blast and annotate using omics box
+
